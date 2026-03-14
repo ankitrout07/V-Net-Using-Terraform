@@ -1,105 +1,110 @@
 # security.tf
 
 # 1. ALB Security Group (Public)
-resource "aws_security_group" "alb_sg" {
-  name        = "${var.project_name}-alb-sg"
-  description = "Allow HTTP inbound traffic"
-  vpc_id      = aws_vpc.main.id
+resource "azurerm_network_security_group" "alb_nsg" {
+  name                = "${var.project_name}-alb-nsg"
+  location            = azurerm_resource_group.main.location
+  resource_group_name = azurerm_resource_group.main.name
 
-  ingress {
-    description = "HTTP from everywhere"
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+  security_rule {
+    name                       = "Allow-HTTP-Inbound"
+    priority                   = 100
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "80"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
   }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = { Name = "${var.project_name}-alb-sg" }
 }
 
 # 2. App Tier Security Group (Private)
-resource "aws_security_group" "app_sg" {
-  name        = "${var.project_name}-app-sg"
-  description = "Allow traffic from ALB"
-  vpc_id      = aws_vpc.main.id
+resource "azurerm_network_security_group" "app_nsg" {
+  name                = "${var.project_name}-app-nsg"
+  location            = azurerm_resource_group.main.location
+  resource_group_name = azurerm_resource_group.main.name
 
-  ingress {
-    description     = "HTTP from ALB"
-    from_port       = 80
-    to_port         = 80
-    protocol        = "tcp"
-    security_groups = [aws_security_group.alb_sg.id]
+  security_rule {
+    name                       = "Allow-HTTP-from-ALB"
+    priority                   = 100
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "80"
+    # In a real setup, restrict to Application Gateway subnet or Load Balancer IPs
+    source_address_prefix      = "VirtualNetwork"
+    destination_address_prefix = "*"
   }
 
-  ingress {
-    description     = "SSH from Bastion"
-    from_port       = 22
-    to_port         = 22
-    protocol        = "tcp"
-    security_groups = [aws_security_group.bastion_sg.id]
+  security_rule {
+    name                       = "Allow-SSH-from-Bastion"
+    priority                   = 110
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "22"
+    source_address_prefix      = "VirtualNetwork"
+    destination_address_prefix = "*"
   }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = { Name = "${var.project_name}-app-sg" }
 }
 
 # 3. DB Tier Security Group (Isolated)
-resource "aws_security_group" "db_sg" {
-  name        = "${var.project_name}-db-sg"
-  description = "Allow traffic from App Tier"
-  vpc_id      = aws_vpc.main.id
+resource "azurerm_network_security_group" "db_nsg" {
+  name                = "${var.project_name}-db-nsg"
+  location            = azurerm_resource_group.main.location
+  resource_group_name = azurerm_resource_group.main.name
 
-  ingress {
-    description     = "PostgreSQL from App Tier"
-    from_port       = 5432
-    to_port         = 5432
-    protocol        = "tcp"
-    security_groups = [aws_security_group.app_sg.id]
+  # Allow App Tier to access PostgreSQL
+  security_rule {
+    name                       = "Allow-PostgreSQL-from-AppTier"
+    priority                   = 100
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "5432"
+    source_address_prefix      = "VirtualNetwork"
+    destination_address_prefix = "*"
   }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = { Name = "${var.project_name}-db-sg" }
 }
 
 # 4. Bastion Host Security Group (Public)
-resource "aws_security_group" "bastion_sg" {
-  name        = "${var.project_name}-bastion-sg"
-  description = "Allow SSH inbound traffic"
-  vpc_id      = aws_vpc.main.id
+resource "azurerm_network_security_group" "bastion_nsg" {
+  name                = "${var.project_name}-bastion-nsg"
+  location            = azurerm_resource_group.main.location
+  resource_group_name = azurerm_resource_group.main.name
 
-  ingress {
-    description = "SSH from allowed CIDR"
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = [var.ssh_allowed_cidr]
+  security_rule {
+    name                       = "Allow-SSH-Inbound"
+    priority                   = 100
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "22"
+    source_address_prefix      = var.ssh_allowed_source
+    destination_address_prefix = "*"
   }
+}
 
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+# NSG Associations
+resource "azurerm_subnet_network_security_group_association" "public" {
+  count                     = 2
+  subnet_id                 = azurerm_subnet.public[count.index].id
+  network_security_group_id = azurerm_network_security_group.alb_nsg.id
+}
 
-  tags = { Name = "${var.project_name}-bastion-sg" }
+resource "azurerm_subnet_network_security_group_association" "app" {
+  count                     = 2
+  subnet_id                 = azurerm_subnet.app[count.index].id
+  network_security_group_id = azurerm_network_security_group.app_nsg.id
+}
+
+resource "azurerm_subnet_network_security_group_association" "db" {
+  count                     = 2
+  subnet_id                 = azurerm_subnet.db[count.index].id
+  network_security_group_id = azurerm_network_security_group.db_nsg.id
 }

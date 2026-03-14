@@ -1,104 +1,137 @@
 # compute.tf
 
-# 1. Application Load Balancer (ALB)
-resource "aws_lb" "main" {
-  name               = "${var.project_name}-alb"
-  internal           = false
-  load_balancer_type = "application"
-  security_groups    = [aws_security_group.alb_sg.id]
-  subnets            = aws_subnet.public[*].id
-
-  tags = { Name = "${var.project_name}-alb" }
+# 1. Standard Public Load Balancer
+resource "azurerm_public_ip" "lb_pip" {
+  name                = "${var.project_name}-lb-pip"
+  location            = azurerm_resource_group.main.location
+  resource_group_name = azurerm_resource_group.main.name
+  allocation_method   = "Static"
+  sku                 = "Standard"
 }
 
-resource "aws_lb_target_group" "app" {
-  name     = "${var.project_name}-tg"
-  port     = 80
-  protocol = "HTTP"
-  vpc_id   = aws_vpc.main.id
+resource "azurerm_lb" "main" {
+  name                = "${var.project_name}-lb"
+  location            = azurerm_resource_group.main.location
+  resource_group_name = azurerm_resource_group.main.name
+  sku                 = "Standard"
 
-  health_check {
-    path                = "/"
-    protocol            = "HTTP"
-    matcher             = "200"
-    interval            = 30
-    timeout             = 5
-    healthy_threshold   = 3
-    unhealthy_threshold = 3
+  frontend_ip_configuration {
+    name                 = "PublicIPAddress"
+    public_ip_address_id = azurerm_public_ip.lb_pip.id
   }
 }
 
-resource "aws_lb_listener" "http" {
-  load_balancer_arn = aws_lb.main.arn
-  port              = "80"
-  protocol          = "HTTP"
+resource "azurerm_lb_backend_address_pool" "app_pool" {
+  loadbalancer_id = azurerm_lb.main.id
+  name            = "AppBackendPool"
+}
 
-  default_action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.app.arn
+resource "azurerm_lb_probe" "http_probe" {
+  loadbalancer_id = azurerm_lb.main.id
+  name            = "http-probe"
+  port            = 80
+  protocol        = "Http"
+  request_path    = "/"
+}
+
+resource "azurerm_lb_rule" "http" {
+  loadbalancer_id                = azurerm_lb.main.id
+  name                           = "http-rule"
+  protocol                       = "Tcp"
+  frontend_port                  = 80
+  backend_port                   = 80
+  frontend_ip_configuration_name = "PublicIPAddress"
+  backend_address_pool_ids       = [azurerm_lb_backend_address_pool.app_pool.id]
+  probe_id                       = azurerm_lb_probe.http_probe.id
+}
+
+# 2. Virtual Machine Scale Set (replaces ASG and Launch Template)
+resource "azurerm_linux_virtual_machine_scale_set" "app" {
+  name                = "${var.project_name}-vmss"
+  resource_group_name = azurerm_resource_group.main.name
+  location            = azurerm_resource_group.main.location
+  sku                 = var.vm_size
+  instances           = 2
+  admin_username      = var.admin_username
+
+  admin_ssh_key {
+    username   = var.admin_username
+    public_key = file("~/.ssh/id_rsa.pub") # Requires a local SSH key
+  }
+
+  source_image_reference {
+    publisher = "Canonical"
+    offer     = "0001-com-ubuntu-server-jammy"
+    sku       = "22_04-lts"
+    version   = "latest"
+  }
+
+  os_disk {
+    storage_account_type = "Standard_LRS"
+    caching              = "ReadWrite"
+  }
+
+  network_interface {
+    name    = "app-nic"
+    primary = true
+
+    ip_configuration {
+      name                                   = "internal"
+      primary                                = true
+      subnet_id                              = azurerm_subnet.app[0].id
+      load_balancer_backend_address_pool_ids = [azurerm_lb_backend_address_pool.app_pool.id]
+    }
+  }
+
+  custom_data = filebase64("${path.module}/init.sh")
+}
+
+# 3. Bastion Host (Simulated using a VM with a Public IP, can also use Azure Bastion Service)
+resource "azurerm_public_ip" "bastion_pip" {
+  name                = "${var.project_name}-bastion-pip"
+  location            = azurerm_resource_group.main.location
+  resource_group_name = azurerm_resource_group.main.name
+  allocation_method   = "Dynamic"
+}
+
+resource "azurerm_network_interface" "bastion_nic" {
+  name                = "${var.project_name}-bastion-nic"
+  location            = azurerm_resource_group.main.location
+  resource_group_name = azurerm_resource_group.main.name
+
+  ip_configuration {
+    name                          = "internal"
+    subnet_id                     = azurerm_subnet.public[0].id
+    private_ip_address_allocation = "Dynamic"
+    public_ip_address_id          = azurerm_public_ip.bastion_pip.id
   }
 }
 
-# 2. Launch Template for ASG
-resource "aws_launch_template" "app" {
-  name_prefix   = "${var.project_name}-app-"
-  image_id      = data.aws_ami.amazon_linux_2023.id
-  instance_type = var.instance_type
+resource "azurerm_linux_virtual_machine" "bastion" {
+  name                = "${var.project_name}-bastion"
+  resource_group_name = azurerm_resource_group.main.name
+  location            = azurerm_resource_group.main.location
+  size                = "Standard_B1s"
+  admin_username      = var.admin_username
 
-  network_interfaces {
-    associate_public_ip_address = false
-    security_groups             = [aws_security_group.app_sg.id]
+  network_interface_ids = [
+    azurerm_network_interface.bastion_nic.id,
+  ]
+
+  admin_ssh_key {
+    username   = var.admin_username
+    public_key = file("~/.ssh/id_rsa.pub")
   }
 
-  user_data = base64encode(<<-EOF
-              #!/bin/bash
-              dnf update -y
-              dnf install -y httpd
-              systemctl start httpd
-              systemctl enable httpd
-              echo "<h1>Hello from Fortress-VPC Tier 2</h1>" > /var/www/html/index.html
-              EOF
-  )
-
-  tag_specifications {
-    resource_type = "instance"
-    tags          = { Name = "${var.project_name}-app-instance" }
+  os_disk {
+    caching              = "ReadWrite"
+    storage_account_type = "Standard_LRS"
   }
-}
 
-# 3. Auto Scaling Group (ASG)
-resource "aws_autoscaling_group" "app" {
-  name                = "${var.project_name}-asg"
-  desired_capacity    = 2
-  max_size            = 4
-  min_size            = 2
-  target_group_arns   = [aws_lb_target_group.app.arn]
-  vpc_zone_identifier = aws_subnet.app[*].id
-
-  launch_template {
-    id      = aws_launch_template.app.id
-    version = "$Latest"
-  }
-}
-
-# 4. Bastion Host
-resource "aws_instance" "bastion" {
-  ami           = data.aws_ami.amazon_linux_2023.id
-  instance_type = "t3.micro"
-  subnet_id     = aws_subnet.public[0].id
-  vpc_security_group_ids = [aws_security_group.bastion_sg.id]
-  associate_public_ip_address = true
-
-  tags = { Name = "${var.project_name}-bastion" }
-}
-
-# AMI Data Source
-data "aws_ami" "amazon_linux_2023" {
-  most_recent = true
-  owners      = ["amazon"]
-
-  filter {
-    name   = "name"
-    values = ["al2023-ami-*-x86_64"]
+  source_image_reference {
+    publisher = "Canonical"
+    offer     = "0001-com-ubuntu-server-jammy"
+    sku       = "22_04-lts"
+    version   = "latest"
   }
 }

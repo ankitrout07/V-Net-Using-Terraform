@@ -1,33 +1,38 @@
 # outputs.tf
 
-output "vpc_id" {
-  description = "The ID of the VPC"
-  value       = aws_vpc.main.id
+output "vnet_name" {
+  description = "The name of the Virtual Network"
+  value       = azurerm_virtual_network.main.name
 }
 
-output "alb_dns_name" {
-  description = "The DNS name of the Load Balancer"
-  value       = aws_lb.main.dns_name
+output "lb_public_ip" {
+  description = "The Public IP of the Load Balancer"
+  value       = azurerm_public_ip.lb_pip.ip_address
 }
 
-output "db_endpoint" {
-  description = "The connection endpoint for the RDS instance"
-  value       = aws_db_instance.postgres.endpoint
+output "db_server_name" {
+  description = "The name of the PostgreSQL Flexible Server"
+  value       = azurerm_postgresql_flexible_server.postgres.name
+}
+
+output "db_server_fqdn" {
+  description = "The fully qualified domain name of the PostgreSQL server"
+  value       = azurerm_postgresql_flexible_server.postgres.fqdn
 }
 
 output "bastion_public_ip" {
   description = "The public IP of the Bastion Host"
-  value       = aws_instance.bastion.public_ip
+  value       = azurerm_public_ip.bastion_pip.ip_address
 }
 
 output "public_subnet_ids" {
-  value = aws_subnet.public[*].id
+  value = azurerm_subnet.public[*].id
 }
 
 output "app_subnet_ids" {
-  value = aws_subnet.app[*].id
+  value = azurerm_subnet.app[*].id
 }
 
 output "db_subnet_ids" {
-  value = aws_subnet.db[*].id
+  value = azurerm_subnet.db[*].id
 }

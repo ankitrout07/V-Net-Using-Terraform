@@ -1,49 +1,49 @@
 # variables.tf
 
-variable "aws_region" {
-  description = "Target region for deployment"
+variable "location" {
+  description = "Target location for deployment"
   type        = string
-  default     = "us-east-1"
+  default     = "East US"
 }
 
-variable "vpc_cidr" {
-  description = "Base CIDR for the VPC"
+variable "vnet_address_space" {
+  description = "Base Address Space for the VNet"
   type        = string
   default     = "10.0.0.0/16"
 }
 
 variable "project_name" {
   type    = string
-  default = "Fortress-VPC"
+  default = "Fortress-VNet"
 }
 
-variable "instance_type" {
-  description = "Instance type for application servers"
+variable "vm_size" {
+  description = "VM size for application servers"
   type        = string
-  default     = "t3.micro"
+  default     = "Standard_B1s"
 }
 
 variable "db_name" {
-  description = "Name of the RDS database"
+  description = "Name of the Postgres database"
   type        = string
   default     = "fortressdb"
 }
 
-variable "db_username" {
-  description = "Username for RDS"
+variable "admin_username" {
+  description = "Admin username for VMs and DB"
   type        = string
-  default     = "dbadmin"
+  default     = "adminuser"
 }
 
-variable "db_password" {
-  description = "Password for RDS (sensitve)"
+variable "admin_password" {
+  description = "Password for VMs and DB (sensitive)"
   type        = string
   sensitive   = true
-  default     = "ChangeMe123!" # In production, use Secrets Manager
+  default     = "ChangeMe123!" # In production, use Key Vault
 }
 
-variable "ssh_allowed_cidr" {
-  description = "CIDR block allowed to SSH into Bastion"
+variable "ssh_allowed_source" {
+  description = "Source IP range allowed to SSH into Bastion"
   type        = string
-  default     = "0.0.0.0/0" # Restricted to user's IP in production
+  default     = "*" # Restricted to user's IP in production
 }

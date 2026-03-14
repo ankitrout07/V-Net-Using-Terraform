@@ -1,36 +1,36 @@
-# VPC-Using-Terraform
+# VNet-Using-Terraform (Azure)
 
-Production-grade 3-Tier VPC architecture on AWS using Terraform. 
+Production-grade 3-Tier VNet architecture on Azure using Terraform. 
 
 ## Architecture
 This project implements a secure, highly-available 3-tier architecture:
 
 1.  **Tier 1: Web (Public)**
-    *   Application Load Balancer (ALB)
-    *   Bastion Host for SSH access
-    *   Internet Gateway (IGW)
+    *   Standard Public Load Balancer
+    *   Bastion Host (VM with Public IP) for SSH access
 2.  **Tier 2: App (Private)**
-    *   Auto Scaling Group (ASG) with Amazon Linux 2023
-    *   Instances are isolated from direct internet access
+    *   Virtual Machine Scale Set (VMSS) with Ubuntu Server 22.04 LTS
+    *   Instances are isolated from direct inbound internet access
     *   Egress traffic via NAT Gateway
 3.  **Tier 3: DB (Isolated)**
-    *   RDS PostgreSQL Instance
-    *   Subnets have no internet route
+    *   Azure Database for PostgreSQL Flexible Server
+    *   Delegated subnets with no public access
+    *   Private DNS Zone integration
 
 ### Security
-- **Security Groups**: Stateful firewalls restricting traffic between tiers.
+- **Network Security Groups (NSGs)**: Stateful firewalls restricting traffic between tiers.
 - **NAT Gateway**: Controlled egress for private instances.
-- **Remote State**: AzureRM backend (configurable in `provider.tf`).
+- **Remote State**: AzureRM backend (configurable in `networking/provider.tf`).
 
 ## Prerequisites
 - Terraform >= 1.0
-- AWS CLI configured
 - Azure CLI configured and authenticated (`az login`)
+- Existing local SSH Key (`~/.ssh/id_rsa.pub`) - required for VM authentication.
 
 ## Setup
 
 ### Step 1: Bootstrap Azure Backend
-This creates the Azure Resource Group, Storage Account, and Container to hold the Terraform state for the AWS infrastructure.
+This creates the Azure Resource Group, Storage Account, and Container to hold the Terraform state for the infrastructure.
 
 1. Navigate to the `backend-init/` directory:
    ```bash
@@ -43,15 +43,15 @@ This creates the Azure Resource Group, Storage Account, and Container to hold th
    ```
 3. Take note of the `storage_account_name` value output by Terraform. You will need to plug this into the provider config in Step 2.
 
-### Step 2: Deploy Fortress VPC (AWS)
-This deploys the actual AWS infrastructure (VPC, Subnets, EC2, RDS) using the Azure state bucket.
+### Step 2: Deploy Fortress VNet
+This deploys the actual Azure infrastructure (VNet, Subnets, VMSS, PostgreSQL) using the remote state bucket created in Step 1.
 
 1. Navigate to the `networking/` directory:
    ```bash
    cd ../networking
    ```
-2. Update `provider.tf` and replace `<YOUR_AZURE_STORAGE_ACCOUNT_NAME>` with the output from Step 1.
-3. Fill in values for `terraform.tfvars`.
+2. Open `provider.tf` and replace `<YOUR_AZURE_STORAGE_ACCOUNT_NAME>` with the output from Step 1.
+3. Open `terraform.tfvars` to customize locations or resource names if desired.
 4. Run Terraform to deploy the infrastructure:
    ```bash
    terraform init
