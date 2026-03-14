@@ -3,7 +3,7 @@
 variable "location" {
   description = "The Azure region to deploy to"
   type        = string
-  default     = "West Europe" # Use East US or West Europe
+  default     = "Central India" # Allowed and likely has B1s capacity
 }
 
 variable "vnet_address_space" {
@@ -20,7 +20,7 @@ variable "project_name" {
 variable "vm_size" {
   description = "VM size for application servers"
   type        = string
-  default     = "Standard_B1s"
+  default     = "Standard_D2s_v3"
 }
 
 variable "db_name" {

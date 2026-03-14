@@ -51,7 +51,7 @@ resource "azurerm_linux_virtual_machine_scale_set" "app" {
   resource_group_name = azurerm_resource_group.main.name
   location            = azurerm_resource_group.main.location
   sku                 = var.vm_size
-  instances           = 2
+  instances           = 1
   admin_username      = var.admin_username
 
   admin_ssh_key {
@@ -91,7 +91,8 @@ resource "azurerm_public_ip" "bastion_pip" {
   name                = "${var.project_name}-bastion-pip"
   location            = azurerm_resource_group.main.location
   resource_group_name = azurerm_resource_group.main.name
-  allocation_method   = "Dynamic"
+  allocation_method   = "Static"
+  sku                 = "Standard"
 }
 
 resource "azurerm_network_interface" "bastion_nic" {
@@ -111,7 +112,7 @@ resource "azurerm_linux_virtual_machine" "bastion" {
   name                = "${var.project_name}-bastion"
   resource_group_name = azurerm_resource_group.main.name
   location            = azurerm_resource_group.main.location
-  size                = "Standard_B1s"
+  size                = "Standard_D2s_v3"
   admin_username      = var.admin_username
 
   network_interface_ids = [
