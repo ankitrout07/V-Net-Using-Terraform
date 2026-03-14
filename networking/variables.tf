@@ -3,7 +3,7 @@
 variable "location" {
   description = "The Azure region to deploy to"
   type        = string
-  default     = "East US" # Use East US or West Europe
+  default     = "West Europe" # Use East US or West Europe
 }
 
 variable "vnet_address_space" {
