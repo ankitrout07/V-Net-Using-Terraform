@@ -39,7 +39,7 @@ resource "azurerm_network_security_group" "app_nsg" {
 
   security_rule {
     name                   = "Allow-HTTP-from-ALB"
-    priority               = 100
+    priority               = 101
     direction              = "Inbound"
     access                 = "Allow"
     protocol               = "Tcp"
@@ -85,14 +85,14 @@ resource "azurerm_network_security_group" "db_nsg" {
 
 # 4. Allow port 8080 (e.g., app running on 8080)
 resource "azurerm_network_security_rule" "allow_8080" {
-  name                        = "Allow-HTTP-8080"
-  priority                    = 120
+  name                        = "Allow-8080-Inbound"
+  priority                    = 100
   direction                   = "Inbound"
   access                      = "Allow"
   protocol                    = "Tcp"
   source_port_range           = "*"
   destination_port_range      = "8080"
-  source_address_prefix       = "*" # For production, replace with your specific Public IP
+  source_address_prefix       = "*" 
   destination_address_prefix  = "*"
   resource_group_name         = azurerm_resource_group.main.name
   network_security_group_name = azurerm_network_security_group.app_nsg.name
