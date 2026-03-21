@@ -62,6 +62,13 @@ resource "azurerm_postgresql_flexible_server" "db" {
   geo_redundant_backup_enabled = false
   public_network_access_enabled = false
 
+  lifecycle {
+    ignore_changes = [
+      zone,
+      high_availability[0].standby_availability_zone
+    ]
+  }
+
   depends_on = [azurerm_private_dns_zone_virtual_network_link.postgres]
 }
 

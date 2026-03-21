@@ -3,7 +3,7 @@
 variable "location" {
   description = "The Azure region to deploy to"
   type        = string
-  default     = "Central India" # Allowed and likely has B1s capacity
+  default     = "South India" # Switching to South India as Central India is completely out of quota
 }
 
 variable "vnet_address_space" {
@@ -20,7 +20,7 @@ variable "project_name" {
 variable "vm_size" {
   description = "VM size for application servers"
   type        = string
-  default     = "Standard_D2s_v3"
+  default     = "Standard_D2s_v3" # The only size available in Central India, limited to 4 cores total
 }
 
 variable "db_name" {

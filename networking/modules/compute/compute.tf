@@ -51,7 +51,7 @@ resource "azurerm_linux_virtual_machine_scale_set" "app" {
   resource_group_name = var.resource_group_name
   location            = var.location
   sku                 = var.vm_size
-  instances           = 2
+  instances           = 1 # Reduced to 1 to fit within the 4-core DSv3 limit along with Bastion
   admin_username      = var.admin_username
 
   admin_ssh_key {
@@ -113,7 +113,7 @@ resource "azurerm_linux_virtual_machine" "bastion" {
   name                = "${var.project_name}-bastion"
   resource_group_name = var.resource_group_name
   location            = var.location
-  size                = "Standard_B2s" # Cost-optimized bastion, using B2s to avoid B1s capacity limits
+  size                = "Standard_D2s_v3" # Fits exactly into the remaining 2 cores of the 4-core quota
   admin_username      = var.admin_username
 
   network_interface_ids = [
