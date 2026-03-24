@@ -1,11 +1,4 @@
 # Fortress VNet — How It All Works
-
-A simple explanation of every file and component in this project.
-
----
-
-## The Big Picture
-
 When you run `terraform apply`, it creates this on Azure:
 
 ```
