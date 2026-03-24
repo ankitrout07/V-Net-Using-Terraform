@@ -34,6 +34,11 @@ resource "azurerm_application_gateway" "main" {
     subnet_id = var.subnet_id
   }
 
+  ssl_policy {
+    policy_type = "Predefined"
+    policy_name = "AppGwSslPolicy20220101"
+  }
+
   frontend_port {
     name = local.frontend_port_name
     port = 80
