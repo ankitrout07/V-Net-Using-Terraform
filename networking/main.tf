@@ -75,6 +75,7 @@ resource "azurerm_role_assignment" "aks_acr_pull" {
 # AGIC Role Assignments
 # 1. Grant Reader to the Resource Group
 resource "azurerm_role_assignment" "agic_rg_reader" {
+  name                 = "99970728-cc8a-4cce-941b-1d9aef78fe2f"
   scope                = "/subscriptions/7ef42162-83d2-4247-8010-38bf34dd1453/resourceGroups/Fortress-VNet-rg"
   role_definition_name = "Reader"
   principal_id         = "36adc1ec-d3a2-4a48-a306-843725c42a6b" # Object ID from your logs
@@ -82,6 +83,7 @@ resource "azurerm_role_assignment" "agic_rg_reader" {
 
 # 2. Grant Contributor to the App Gateway
 resource "azurerm_role_assignment" "agic_appgw_contributor" {
+  name                 = "1ffc7352-6699-418f-8b7e-ab5600121a47"
   scope                = "/subscriptions/7ef42162-83d2-4247-8010-38bf34dd1453/resourceGroups/Fortress-VNet-rg/providers/Microsoft.Network/applicationGateways/Fortress-VNet-appgw"
   role_definition_name = "Contributor"
   principal_id         = "36adc1ec-d3a2-4a48-a306-843725c42a6b"
