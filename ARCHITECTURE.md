@@ -8,6 +8,8 @@ Application Gateway (WAF-ready)
    ↓
 Private AKS Cluster (K8s)
    ↓
+Custom Dashboard (Nginx)
+   ↓
 PostgreSQL Database (private)
 ```
 

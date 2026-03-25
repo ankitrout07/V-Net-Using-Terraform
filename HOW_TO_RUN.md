@@ -93,17 +93,35 @@ psql -h <db_server_fqdn> -U adminuser -d fortressdb
 
 ---
 
-## Teardown — Delete Everything
+## Step 5 — Deploying the Custom Dashboard
 
-When you're done, destroy all resources to avoid Azure charges:
+Since we've replaced the default Nginx page with a custom dashboard, you need to build and push the image to ACR:
 
+**1. Build the Docker Image:**
 ```bash
-cd networking
-terraform destroy
-
-cd ../backend-init
-terraform destroy
+cd dashboard
+docker build -t fortressvnetacr3x3rgz.azurecr.io/fortress-dashboard:v1 .
 ```
+
+**2. Push to ACR:**
+```bash
+# Ensure you are logged in (from Step 4)
+docker push fortressvnetacr3x3rgz.azurecr.io/fortress-dashboard:v1
+```
+
+**3. Apply to Kubernetes:**
+```bash
+cd ../k8s
+kubectl apply -f fortress-app.yaml
+kubectl apply -f fortress-ingress.yaml
+```
+
+**4. Access the Dashboard:**
+Open your browser and navigate to the `app_gateway_public_ip` (from Step 4 output).
+
+---
+
+## Teardown — Delete Everything
 
 Type `yes` at each prompt.
 
