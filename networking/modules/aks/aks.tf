@@ -13,7 +13,9 @@ resource "azurerm_kubernetes_cluster" "main" {
   dns_prefix              = "${lower(var.project_name)}-k8s"
   kubernetes_version      = var.kubernetes_version
   private_cluster_enabled         = false # Private AKS Cluster
-  api_server_authorized_ip_ranges = ["14.98.82.230/32"]
+  api_server_access_profile {
+    authorized_ip_ranges = ["14.98.82.230/32"]
+  }
 
   default_node_pool {
     name           = "systempool"
