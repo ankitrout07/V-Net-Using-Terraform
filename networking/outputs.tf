@@ -43,3 +43,8 @@ output "state_container_name" {
 output "mgmt_resource_group_name" {
   value = azurerm_resource_group.tfstate.name
 }
+
+output "resource_group_name" {
+  description = "The main resource group name"
+  value       = module.networking.resource_group_name
+}

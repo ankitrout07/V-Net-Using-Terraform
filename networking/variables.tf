@@ -1,5 +1,11 @@
 # variables.tf
 
+variable "environment" {
+  description = "The deployment environment (dev, prod, etc)"
+  type        = string
+  default     = "dev"
+}
+
 variable "location" {
   description = "The Azure region to deploy to"
   type        = string
