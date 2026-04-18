@@ -12,7 +12,7 @@ resource "azurerm_kubernetes_cluster" "main" {
   resource_group_name     = var.resource_group_name
   dns_prefix              = "${lower(var.project_name)}-k8s"
   kubernetes_version      = var.kubernetes_version
-  private_cluster_enabled = true # Private AKS Cluster
+  private_cluster_enabled = false # Set to false to allow management from local machine
   api_server_access_profile {
     authorized_ip_ranges = var.authorized_ip_ranges
   }
