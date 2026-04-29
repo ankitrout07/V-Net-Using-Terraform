@@ -73,9 +73,10 @@ resource "azurerm_application_gateway" "main" {
     protocol                       = "Http"
   }
 
+  # This is a "Default" rule that will be overridden or supplemented by AGIC
   request_routing_rule {
-    name                       = local.request_routing_rule_name
-    priority                   = 100
+    name                       = "default-rule"
+    priority                   = 1
     rule_type                  = "Basic"
     http_listener_name         = local.listener_name
     backend_address_pool_name  = local.backend_address_pool_name

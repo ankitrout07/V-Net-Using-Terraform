@@ -43,6 +43,9 @@
                     <button class="action-btn scan-btn" onclick="startSecurityScan()">
                         <span class="btn-icon">🛡️</span> Run Security Scan
                     </button>
+                    <button class="action-btn" style="background: rgba(239, 68, 68, 0.1); color: var(--danger); border: 1px solid var(--danger); box-shadow: none;" onclick="toggleGatewayFailure()">
+                        ⚠️ Fail Gateway
+                    </button>
                     <div class="cost-badge">
                         <span class="label">EST. COST</span>
                         <span class="value">$142.40/mo</span>
@@ -286,6 +289,16 @@
         </div>
     </div>
 
+    <!-- Gateway Failure Overlay -->
+    <div id="gateway-failure" class="gateway-failure-overlay">
+        <div class="err-code">502</div>
+        <div class="err-msg">BAD GATEWAY</div>
+        <div class="err-sub">Microsoft-Azure-Application-Gateway/v2</div>
+        <button class="action-btn" style="margin-top: 3rem;" onclick="toggleGatewayFailure()">
+            🔄 Attempt Reconnection
+        </button>
+    </div>
+
     <script>
         function updateClock() { document.getElementById('live-clock').textContent = new Date().toLocaleTimeString(); }
         setInterval(updateClock, 1000); updateClock();
@@ -396,6 +409,18 @@
 
         function closeDetailPane() {
             document.getElementById('detail-pane').classList.remove('active');
+        }
+
+        function toggleGatewayFailure() {
+            const body = document.body;
+            body.classList.toggle('failed-gateway');
+            if (body.classList.contains('failed-gateway')) {
+                writeToTerminal('CRITICAL ERROR: 502 Bad Gateway detected on WAF v2', 'danger');
+                showToast('Gateway Connectivity Lost', 'danger');
+            } else {
+                writeToTerminal('System Recovery: Gateway communication restored', 'success');
+                showToast('Gateway Restored', 'success');
+            }
         }
 
         let lastPodCount = 0;

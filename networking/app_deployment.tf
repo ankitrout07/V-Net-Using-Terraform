@@ -143,8 +143,10 @@ resource "kubernetes_ingress_v1" "fortress_ingress" {
     name      = "fortress-ingress"
     namespace = "default"
     annotations = {
+      "kubernetes.io/ingress.class"                       = "azure/application-gateway"
       "appgw.ingress.kubernetes.io/backend-path-prefix"   = "/"
       "appgw.ingress.kubernetes.io/health-probe-path"     = "/api/health"
+      "appgw.ingress.kubernetes.io/success-codes"         = "200-399"
     }
   }
 

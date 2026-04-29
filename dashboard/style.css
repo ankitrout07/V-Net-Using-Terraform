@@ -396,6 +396,42 @@ body {
 
 .image-hash { font-size: 0.7rem !important; opacity: 0.7; }
 
+/* ── Gateway Failure State ── */
+.gateway-failure-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.9);
+    backdrop-filter: blur(40px);
+    z-index: 5000;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    animation: fadeIn 0.5s ease-out;
+}
+
+body.failed-gateway .gateway-failure-overlay { display: flex; }
+
+.err-code { 
+    font-size: 10rem; 
+    font-weight: 900; 
+    color: var(--danger); 
+    line-height: 1;
+    text-shadow: 0 0 50px rgba(239, 68, 68, 0.5);
+    margin-bottom: 1rem;
+}
+
+.err-msg { font-size: 2rem; font-weight: 700; color: #fff; margin-bottom: 0.5rem; }
+.err-sub { color: var(--text-dim); font-family: 'JetBrains Mono', monospace; font-size: 1rem; }
+
+body.failed-gateway .flow-path { stroke: var(--danger) !important; stroke-dasharray: 2, 5 !important; animation: none !important; }
+body.failed-gateway .particle { display: none; }
+body.failed-gateway .node.gateway { filter: drop-shadow(0 0 30px var(--danger)) !important; }
+body.failed-gateway .node.gateway rect { stroke: var(--danger) !important; }
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
 /* ── Value Text (shared) ── */
 .value-text { font-size: 1.4rem; font-weight: 700; color: #fff; margin-top: 1rem; }
 
