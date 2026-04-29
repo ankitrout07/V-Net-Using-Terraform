@@ -77,15 +77,19 @@ async function getClusterData() {
 
 // Real-time updates via WebSockets
 setInterval(async () => {
-    const data = await getClusterData();
-    io.emit("clusterData", data);
-}, 2000);
+    try {
+        const data = await getClusterData();
+        io.emit("clusterData", data);
+    } catch (err) {
+        console.error("[FORTRESS-TELEMETRY] Failed to fetch metrics:", err.message);
+    }
+}, 3000);
 
 io.on('connection', (socket) => {
     console.log('New client connected');
     socket.on('disconnect', () => console.log('Client disconnected'));
 });
 
-server.listen(port, () => {
-  console.log(`Fortress Real-Time API listening on port ${port}`);
+server.listen(port, '0.0.0.0', () => {
+    console.log(`[FORTRESS-CORE] Real-Time API online at port ${port}`);
 });

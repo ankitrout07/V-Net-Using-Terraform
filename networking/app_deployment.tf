@@ -116,8 +116,9 @@ resource "kubernetes_deployment" "fortress_web" {
               path = "/health"
               port = 3000
             }
-            initial_delay_seconds = 10
+            initial_delay_seconds = 30
             period_seconds        = 10
+            failure_threshold     = 5
           }
 
           liveness_probe {
@@ -125,8 +126,9 @@ resource "kubernetes_deployment" "fortress_web" {
               path = "/health"
               port = 3000
             }
-            initial_delay_seconds = 20
+            initial_delay_seconds = 60
             period_seconds        = 20
+            failure_threshold     = 5
           }
         }
       }
