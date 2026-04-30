@@ -37,10 +37,21 @@ jobs:
           ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
 
-      - name: Terraform Plan & Apply
+      - name: Terraform Plan
+        id: plan
         run: |
-          terraform plan -out=tfplan
-          terraform apply -auto-approve tfplan
+          terraform plan -detailed-exitcode -out=tfplan || export EXIT_CODE=$?
+          echo "plan_status=$EXIT_CODE" >> $GITHUB_ENV
+        working-directory: ./networking
+        env:
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+
+      - name: Terraform Apply
+        if: env.plan_status == '2'
+        run: terraform apply -auto-approve tfplan
         working-directory: ./networking
         env:
           ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
@@ -55,15 +66,12 @@ jobs:
           echo "AKS=$(terraform output -raw aks_cluster_name)" >> $GITHUB_ENV
           echo "ACR=$(terraform output -raw acr_login_server)" >> $GITHUB_ENV
 
-      - name: Build Docker Image
+      - name: Build and Push if Needed
         run: |
-          docker build -t ${{ env.ACR }}/fortress-dashboard:${{ github.sha }} ./dashboard
-
-      - name: Login to ACR & Push
-        run: |
-          ACR_NAME=$(echo ${{ env.ACR }} | cut -d. -f1)
-          az acr login --name $ACR_NAME
-          docker push ${{ env.ACR }}/fortress-dashboard:${{ github.sha }}
+          ACR_NAME=${{ env.ACR }}
+          docker build -t $ACR_NAME/fortress-dashboard:${{ github.sha }} ./dashboard
+          az acr login --name $(echo $ACR_NAME | cut -d. -f1)
+          docker push $ACR_NAME/fortress-dashboard:${{ github.sha }}
 
       - name: Deploy to AKS
         run: |

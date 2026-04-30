@@ -24,6 +24,13 @@ variable "project_name" {
   default = "Fortress-VNet"
 }
 
+# Standardize the Resource Group Name
+variable "resource_group_name" {
+  description = "The name of the Resource Group"
+  type        = string
+  default     = "Fortress-RG"
+}
+
 variable "vm_size" {
   description = "VM size for application servers"
   type        = string

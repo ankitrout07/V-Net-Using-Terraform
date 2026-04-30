@@ -5,6 +5,11 @@ variable "project_name" {
   type        = string
 }
 
+variable "resource_group_name" {
+  description = "The name of the Resource Group"
+  type        = string
+}
+
 variable "location" {
   description = "Azure region to deploy in"
   type        = string

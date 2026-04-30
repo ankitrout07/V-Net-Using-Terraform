@@ -1,17 +1,11 @@
 # main.tf - Root module: wires networking, compute and database together.
-resource "random_id" "suffix" {
-  byte_length = 4
-}
-
-locals {
-  project_name_random = "${var.project_name}-${var.environment}-${random_id.suffix.hex}"
-}
 
 # ── Networking module ──────────────────────────────────────────────────────────
 module "networking" {
   source = "./modules/networking"
 
-  project_name       = local.project_name_random
+  project_name       = var.project_name
+  resource_group_name = var.resource_group_name
   location           = var.location
   vnet_address_space = var.vnet_address_space
   ssh_allowed_source = var.ssh_allowed_source
@@ -21,7 +15,7 @@ module "networking" {
 module "aks" {
   source = "./modules/aks"
 
-  project_name        = local.project_name_random
+  project_name        = var.project_name
   location            = var.location
   resource_group_name = module.networking.resource_group_name
   node_vm_size        = var.vm_size
@@ -45,7 +39,7 @@ resource "random_password" "db_password" {
 module "database" {
   source = "./modules/database"
 
-  project_name        = local.project_name_random
+  project_name        = var.project_name
   location            = var.location
   resource_group_name = module.networking.resource_group_name
   db_name             = var.db_name
@@ -60,7 +54,7 @@ module "database" {
 module "app_gateway" {
   source = "./modules/app_gateway"
 
-  project_name        = local.project_name_random
+  project_name        = var.project_name
   location            = var.location
   resource_group_name = module.networking.resource_group_name
   subnet_id           = module.networking.gateway_subnet_id
@@ -70,7 +64,7 @@ module "app_gateway" {
 module "acr" {
   source = "./modules/acr"
 
-  project_name        = local.project_name_random
+  project_name        = var.project_name
   location            = var.location
   resource_group_name = module.networking.resource_group_name
   admin_enabled       = true
@@ -80,7 +74,7 @@ module "acr" {
 module "bastion" {
   source = "./modules/bastion"
 
-  project_name        = local.project_name_random
+  project_name        = var.project_name
   location            = var.location
   resource_group_name = module.networking.resource_group_name
   subnet_id           = module.networking.bastion_subnet_id
@@ -90,7 +84,7 @@ module "bastion" {
 module "redis" {
   source = "./modules/redis"
 
-  project_name        = local.project_name_random
+  project_name        = var.project_name
   location            = var.location
   resource_group_name = module.networking.resource_group_name
   subnet_id           = module.networking.redis_subnet_id

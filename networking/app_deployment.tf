@@ -2,7 +2,7 @@
 
 # 1. Docker Build and Push
 resource "docker_image" "dashboard" {
-  name = "${module.acr.login_server}/fortress-dashboard:${random_id.suffix.hex}"
+  name = "${module.acr.login_server}/fortress-dashboard:${substr(sha1(join("", [for f in fileset("../dashboard", "**") : filesha1("../dashboard/${f}")])), 0, 8)}"
   build {
     context    = "../dashboard"
     dockerfile = "Dockerfile"
