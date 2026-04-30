@@ -5,10 +5,10 @@
 Make sure you have these installed:
 
 ```bash
-terraform --version   # needs to be >= 1.0
+terraform --version   # >= 1.5.0 required
 az --version          # Azure CLI
 kubectl version       # Kubernetes CLI
-node --version        # Node.js (for dashboard backend)
+docker --version      # Docker (for local image builds)
 ls ~/.ssh/id_rsa.pub  # SSH key
 ```
 
@@ -26,114 +26,120 @@ Just hit Enter for all prompts.
 az login
 ```
 
-A browser window opens. Sign in. Come back to the terminal.
+A browser window opens. Sign in, then return to the terminal. Confirm the right subscription is active:
+
+```bash
+az account show --query "{name:name, id:id}" -o table
+# If wrong, switch:
+az account set --subscription "<your-subscription-id>"
+```
 
 ---
 
+## Step 2 — One-Time Resource Group & Permissions Setup
+
+> **Skip this step** if `Fortress-RG` already exists in your subscription.
+
+The project uses a **static resource group** (`Fortress-RG`) that persists across every deployment run. This avoids the `PublicIPCountLimitReached` quota error caused by randomised resource group names creating new IPs on every run.
+
+```bash
+# Create the stable resource group
+az group create --name "Fortress-RG" --location "centralindia"
+
+# Grant your Service Principal Owner rights on it (one-time)
+az role assignment create \
+    --assignee "<your-sp-client-id>" \
+    --role "Owner" \
+    --scope "/subscriptions/<your-subscription-id>/resourceGroups/Fortress-RG"
+```
+
 ---
 
-## Step 2 — Deploy the Infrastructure
-
-The project is now configured to be **totally non-interactive**. All resource names are randomised automatically.
+## Step 3 — Deploy the Infrastructure
 
 ```bash
 cd networking
 terraform init
-terraform apply -auto-approve
+terraform plan -out=tfplan
+terraform apply -auto-approve tfplan
 ```
 
-This will:
-1. Create a single, shared Resource Group for all components (VNet, AKS, DB, Redis, Bastion, and State Storage).
-2. Build and push your custom dashboard to ACR.
-3. Deploy the application to AKS.
+Terraform will:
+1. Reuse the existing `Fortress-RG` resource group (creates it if absent).
+2. Create the VNet, AKS cluster, Application Gateway, Bastion, ACR, Redis, and PostgreSQL inside it.
+3. Build and push the dashboard image to ACR automatically.
+4. Deploy the application to AKS via Kubernetes manifests.
 
-This takes about **10–15 minutes** (AKS and Application Gateway deployment).
+⏱ **Expected time: 10–15 minutes** (AKS + Application Gateway provisioning).
 
----
-
-## Step 3 — Access the Dashboard
-
-- **Dashboard URL**: `http://<app_gateway_public_ip>`
-- **Backend Health**: All replicas are "Ready" and joined to the Application Gateway's backend pool.
+> **Note:** Because the resource group is static, `terraform plan` will report **no changes** on subsequent runs if the infrastructure is already up — this is expected and correct.
 
 ---
 
-## Step 4 — Verify the Cluster and Gateway
+## Step 4 — Read the Outputs
 
-When it finishes you'll see something like:
+When `apply` completes you'll see:
+
 ```
 aks_cluster_name      = "Fortress-VNet-aks"
-app_gateway_public_ip = "<app_gateway_public_ip>"
-acr_login_server      = "fortressvnetacrxxxx.azurecr.io"
+app_gateway_public_ip = "<public-ip>"
+acr_login_server      = "fortressvnetacr<suffix>.azurecr.io"
+resource_group_name   = "Fortress-RG"
 ```
 
-### Accessing the Web App
-Once you've deployed an ingress/service to AKS, you can reach it via:
+> It may take **5 additional minutes** for the Application Gateway backend to become healthy.
+
+---
+
+## Step 5 — Access the Dashboard
+
 ```
 http://<app_gateway_public_ip>
 ```
-Note: It may take **5 minutes** for the Application Gateway to finish its initial provisioning.
 
----
+Verify pods are running:
 
-## Authenticate to ACR
 ```bash
-az acr login --name <acr_name>
+az aks get-credentials --resource-group Fortress-RG --name Fortress-VNet-aks --overwrite-existing
+kubectl get pods -n default
+kubectl get ingress -n default
 ```
 
 ---
 
-## Connect to the Database
+## Step 6 — Authenticate to ACR (for manual pushes)
 
-From an app VM (inside the VNet):
+```bash
+az acr login --name <acr_name>
+# Example:
+az acr login --name $(terraform -chdir=networking output -raw acr_login_server | cut -d. -f1)
+```
+
+---
+
+## Step 7 — Connect to the Database
+
+From inside the VNet (via Bastion or an app pod):
+
 ```bash
 psql -h <db_server_fqdn> -U adminuser -d fortressdb
 ```
 
 ---
 
-## Step 5 — Deploying the Custom Dashboard
+## Step 8 — Verify Real-Time WebSocket Updates
 
-Since we've replaced the default Nginx page with a custom dashboard, you need to build and push the image to ACR:
+Once the dashboard is live, verify the real-time pod monitoring:
 
-**1. Build the Docker Image:**
-```bash
-cd dashboard
-docker build -t <acr_login_server>/fortress-dashboard:v2 .
-```
+1. Open `http://<app_gateway_public_ip>` → go to the **Cluster Nodes** tab.
+2. Watch the **Pod Counter** card on the Overview tab.
+3. Trigger autoscaling with ApacheBench:
 
-**2. Push to ACR:**
-```bash
-# Ensure you are logged in (from Step 4)
-docker push <acr_login_server>/fortress-dashboard:v2
-```
-
-**3. Apply to Kubernetes:**
-```bash
-cd ../k8s
-kubectl apply -f fortress-app.yaml
-kubectl apply -f fortress-ingress.yaml
-```
-
-**4. Access the Dashboard:**
-Open your browser and navigate to the `app_gateway_public_ip` (from Step 4 output).
-
----
-
-## Step 6 — Verify Real-Time WebSocket Updates
-
-Once the dashboard is running, you can verify the real-time pod monitoring:
-
-**1. Open the Dashboard** in your browser → go to the **Cluster Nodes** tab.
-
-**2. Watch pods appear** — the Pod Counter card on the Overview tab shows the current count.
-
-**3. Trigger Autoscaling with ApacheBench:**
 ```bash
 ab -n 20000 -c 200 http://<APP_GATEWAY_IP>/
 ```
 
-**4. What You'll See:**
+**Expected behaviour:**
 
 | Phase | Pod Counter | Tag | Terminal Log |
 |-------|-------------|-----|--------------|
@@ -147,12 +153,12 @@ The dashboard updates every **2 seconds** via WebSocket — no page refresh need
 
 ## Windows Users 🪟
 
-This project uses a `Makefile` and bash-style commands which do not run natively in CMD or PowerShell.
+This project uses bash-style commands which do not run natively in CMD or PowerShell.
 
-**Recommended Options:**
-1.  **WSL (Windows Subsystem for Linux)**: Install Ubuntu via WSL and run all commands there. This is the most reliable way.
-2.  **Git Bash**: You can run the `terraform` and `az` commands in Git Bash, but the `Makefile` may still fail without a version of `make` installed.
-3.  **PowerShell**: You can run Terraform manually, but you will need to replace bash variables (like `$(...)`) with PowerShell syntax.
+**Recommended options:**
+1. **WSL (Windows Subsystem for Linux)** — Install Ubuntu via WSL. Most reliable.
+2. **Git Bash** — Works for `terraform` and `az` commands. `Makefile` targets may require `make` for Windows.
+3. **PowerShell** — Run Terraform manually; replace `$(...)` with `$()` PowerShell syntax.
 
 ---
 
@@ -163,42 +169,78 @@ cd networking
 terraform destroy -auto-approve
 ```
 
+> This **does not** delete the `Fortress-RG` resource group itself (since it predates Terraform state). To fully clean up:
+> ```bash
+> az group delete --name Fortress-RG --yes --no-wait
+> ```
+
 ---
 
 ## Common Issues
 
 | Problem | Fix |
 |---------|-----|
-| `No subscription found` | Run `az login` again |
+| `No subscription found` | Run `az login` and re-set subscription with `az account set` |
 | `ssh-key not found` | Run `ssh-keygen -t rsa -b 4096` |
-| Gateway error 502/404 | Initial provisioning can take up to 10 minutes |
-| `kubectl` not connecting | Ensure you are connected to the VNet (private cluster) |
+| `PublicIPCountLimitReached` | Old resource groups are consuming your 3 IP quota. Run `az group delete --name <old-rg> --yes` to clean up stale deployments |
+| Gateway error 502/404 | Normal during initial provisioning; wait up to 10 minutes |
+| `kubectl` not connecting | Run `az aks get-credentials --resource-group Fortress-RG --name Fortress-VNet-aks --overwrite-existing` |
 | `Backend config changed` | Run `rm -rf .terraform` then `terraform init` again |
+| `Invalid format` in GitHub Actions | Ensure `terraform_wrapper: false` is set in the Setup Terraform step |
+| `plan_status` always empty | Use `set +e` / `EXIT_CODE=$?` / `set -e` pattern — not `\|\| export EXIT_CODE=$?` |
+| `409 Conflict` on role assignments | Transient AAD replication delay; re-run the workflow or wait 60 seconds |
 
 ---
 
 ## Setting Up CI/CD (GitHub Actions)
 
-To make GitHub automatically deploy on every merge:
+The workflow at `.github/workflows/deploy.yml` runs automatically on every push to `main`.
+
+### One-Time Setup
 
 **1. Create an Azure Service Principal:**
 ```bash
 az ad sp create-for-rbac \
   --name "fortress-vnet-github" \
-  --role Contributor \
-  --scopes /subscriptions/<your-subscription-id>
+  --role "Contributor" \
+  --scopes /subscriptions/<your-subscription-id> \
+  --sdk-auth
 ```
 
-**2. Add these 5 secrets to GitHub** → Settings → Secrets → Actions:
+Grant it `Owner` on `Fortress-RG` so it can manage role assignments:
+```bash
+az role assignment create \
+  --assignee "<client-id-from-above>" \
+  --role "Owner" \
+  --scope "/subscriptions/<subscription-id>/resourceGroups/Fortress-RG"
+```
+
+**2. Add these secrets to GitHub** → Settings → Secrets and variables → Actions:
 
 | Secret | Value |
 |--------|-------|
-| `AZURE_CLIENT_ID` | `clientId` from above |
-| `AZURE_CLIENT_SECRET` | `clientSecret` from above |
+| `AZURE_CREDENTIALS` | Full JSON output from `create-for-rbac --sdk-auth` |
+| `AZURE_CLIENT_ID` | `clientId` from the JSON |
+| `AZURE_CLIENT_SECRET` | `clientSecret` from the JSON |
 | `AZURE_SUBSCRIPTION_ID` | Your subscription ID |
-| `AZURE_TENANT_ID` | `tenantId` from above |
-| `TF_DB_PASSWORD` | Your DB password |
+| `AZURE_TENANT_ID` | `tenantId` from the JSON |
 
-**3. Uncomment the backend block** in `networking/provider.tf` and fill in your storage account name.
+**3. Add these repository variables** → Settings → Secrets and variables → Variables:
 
-**4. Push to GitHub** — the workflow runs automatically.
+| Variable | Value |
+|----------|-------|
+| `TF_STATE_RG` | Resource group holding the Terraform state storage account |
+| `TF_STATE_ACCOUNT` | Name of the Azure Storage Account for Terraform state |
+
+**4. How the workflow works:**
+
+```
+push to main
+  → terraform init       (connects to Azure backend)
+  → terraform plan       (exit 0 = no changes, exit 2 = changes)
+  → terraform apply      (runs ONLY if exit code was 2)
+  → docker build & push  (always runs with github.sha tag)
+  → kubectl rollout       (deploys new image to AKS)
+```
+
+**5. Push to `main`** — the workflow runs automatically on every merge.
