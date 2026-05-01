@@ -1,11 +1,12 @@
-# security.tf - Uses azurerm_resource_group.main which is defined in this module's vpc.tf
+# security.tf - Unified NSG Configuration
 
-# 1. ALB Security Group (Public Tier)
-resource "azurerm_network_security_group" "alb_nsg" {
-  name                = "${var.project_name}-alb-nsg"
+# --- UNIFIED NETWORK SECURITY GROUP ---
+resource "azurerm_network_security_group" "unified_nsg" {
+  name                = "${var.project_name}-unified-nsg"
   location            = azurerm_resource_group.main.location
   resource_group_name = azurerm_resource_group.main.name
 
+  # 1. Web Traffic (ALB / Gateway / App)
   security_rule {
     name                       = "Allow-HTTP-Inbound"
     priority                   = 100
@@ -20,7 +21,7 @@ resource "azurerm_network_security_group" "alb_nsg" {
 
   security_rule {
     name                       = "Allow-HTTPS-Inbound"
-    priority                   = 105
+    priority                   = 110
     direction                  = "Inbound"
     access                     = "Allow"
     protocol                   = "Tcp"
@@ -30,9 +31,10 @@ resource "azurerm_network_security_group" "alb_nsg" {
     destination_address_prefix = "*"
   }
 
+  # 2. Management (Bastion / SSH)
   security_rule {
-    name                       = "Allow-SSH-Inbound"
-    priority                   = 110
+    name                       = "Allow-SSH-External"
+    priority                   = 120
     direction                  = "Inbound"
     access                     = "Allow"
     protocol                   = "Tcp"
@@ -41,17 +43,23 @@ resource "azurerm_network_security_group" "alb_nsg" {
     source_address_prefix      = var.ssh_allowed_source
     destination_address_prefix = "*"
   }
-}
-
-# 1.5 Gateway Security Group (Mandatory for App Gateway v2)
-resource "azurerm_network_security_group" "gateway_nsg" {
-  name                = "${var.project_name}-gateway-nsg"
-  location            = azurerm_resource_group.main.location
-  resource_group_name = azurerm_resource_group.main.name
 
   security_rule {
+    name                       = "Allow-SSH-Internal"
+    priority                   = 130
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "22"
+    source_address_prefix      = "VirtualNetwork"
+    destination_address_prefix = "*"
+  }
+
+  # 3. Gateway Infrastructure
+  security_rule {
     name                       = "Allow-GatewayManager-Inbound"
-    priority                   = 100
+    priority                   = 140
     direction                  = "Inbound"
     access                     = "Allow"
     protocol                   = "Tcp"
@@ -61,52 +69,10 @@ resource "azurerm_network_security_group" "gateway_nsg" {
     destination_address_prefix = "*"
   }
 
-  security_rule {
-    name                       = "Allow-HTTP-Inbound"
-    priority                   = 110
-    direction                  = "Inbound"
-    access                     = "Allow"
-    protocol                   = "Tcp"
-    source_port_range          = "*"
-    destination_port_range     = "80"
-    source_address_prefix      = "*"
-    destination_address_prefix = "*"
-  }
-
-  security_rule {
-    name                       = "Allow-HTTPS-Inbound"
-    priority                   = 120
-    direction                  = "Inbound"
-    access                     = "Allow"
-    protocol                   = "Tcp"
-    source_port_range          = "*"
-    destination_port_range     = "443"
-    source_address_prefix      = "*"
-    destination_address_prefix = "*"
-  }
-}
-
-# 2. App Tier Security Group (Private)
-resource "azurerm_network_security_group" "app_nsg" {
-  name                = "${var.project_name}-app-nsg"
-  location            = azurerm_resource_group.main.location
-  resource_group_name = azurerm_resource_group.main.name
-
-  security_rule {
-    name                       = "Allow-HTTP-from-LB"
-    priority                   = 100
-    direction                  = "Inbound"
-    access                     = "Allow"
-    protocol                   = "Tcp"
-    source_port_range          = "*"
-    destination_port_range     = "80"
-    source_address_prefix      = "*"
-    destination_address_prefix = "*"
-  }
-
+  # 4. Application Services
   security_rule {
     name                       = "Allow-App-Port-3000"
-    priority                   = 101
+    priority                   = 150
     direction                  = "Inbound"
     access                     = "Allow"
     protocol                   = "Tcp"
@@ -116,28 +82,10 @@ resource "azurerm_network_security_group" "app_nsg" {
     destination_address_prefix = "*"
   }
 
+  # 5. Database Tier
   security_rule {
-    name                       = "Allow-SSH-from-Bastion"
-    priority                   = 110
-    direction                  = "Inbound"
-    access                     = "Allow"
-    protocol                   = "Tcp"
-    source_port_range          = "*"
-    destination_port_range     = "22"
-    source_address_prefix      = "VirtualNetwork"
-    destination_address_prefix = "*"
-  }
-}
-
-# 3. DB Tier Security Group (Isolated)
-resource "azurerm_network_security_group" "db_nsg" {
-  name                = "${var.project_name}-db-nsg"
-  location            = azurerm_resource_group.main.location
-  resource_group_name = azurerm_resource_group.main.name
-
-  security_rule {
-    name                       = "Allow-PostgreSQL-from-AppTier"
-    priority                   = 100
+    name                       = "Allow-PostgreSQL-Inbound"
+    priority                   = 160
     direction                  = "Inbound"
     access                     = "Allow"
     protocol                   = "Tcp"
@@ -147,6 +95,7 @@ resource "azurerm_network_security_group" "db_nsg" {
     destination_address_prefix = "*"
   }
 
+  # 6. Global Security
   security_rule {
     name                       = "Deny-All-Inbound"
     priority                   = 4096
@@ -160,48 +109,21 @@ resource "azurerm_network_security_group" "db_nsg" {
   }
 }
 
-# 4. Bastion Host Security Group (Public)
-resource "azurerm_network_security_group" "bastion_nsg" {
-  name                = "${var.project_name}-bastion-nsg"
-  location            = azurerm_resource_group.main.location
-  resource_group_name = azurerm_resource_group.main.name
-
-  security_rule {
-    name                       = "Allow-SSH-Inbound"
-    priority                   = 100
-    direction                  = "Inbound"
-    access                     = "Allow"
-    protocol                   = "Tcp"
-    source_port_range          = "*"
-    destination_port_range     = "22"
-    source_address_prefix      = var.ssh_allowed_source
-    destination_address_prefix = "*"
-  }
+# --- UNIFIED ASSOCIATION LOGIC ---
+locals {
+  # Define all subnets that should be associated with the unified NSG
+  subnets_to_associate = merge(
+    { for i in range(2) : "public-${i}" => azurerm_subnet.public[i].id },
+    { for i in range(2) : "app-${i}" => azurerm_subnet.app[i].id },
+    { for i in range(2) : "db-${i}" => azurerm_subnet.db[i].id },
+    { "gateway" = azurerm_subnet.gateway.id },
+    { "redis" = azurerm_subnet.redis.id },
+    { "bastion" = azurerm_subnet.bastion.id }
+  )
 }
 
-# NSG Associations
-resource "azurerm_subnet_network_security_group_association" "public" {
-  count                     = 2
-  subnet_id                 = azurerm_subnet.public[count.index].id
-  network_security_group_id = azurerm_network_security_group.alb_nsg.id
-}
-
-resource "azurerm_subnet_network_security_group_association" "app" {
-  count                     = 2
-  subnet_id                 = azurerm_subnet.app[count.index].id
-  network_security_group_id = azurerm_network_security_group.app_nsg.id
-  depends_on                = [azurerm_subnet_network_security_group_association.public]
-}
-
-resource "azurerm_subnet_network_security_group_association" "db" {
-  count                     = 2
-  subnet_id                 = azurerm_subnet.db[count.index].id
-  network_security_group_id = azurerm_network_security_group.db_nsg.id
-  depends_on                = [azurerm_subnet_network_security_group_association.app]
-}
-
-resource "azurerm_subnet_network_security_group_association" "gateway" {
-  subnet_id                 = azurerm_subnet.gateway.id
-  network_security_group_id = azurerm_network_security_group.gateway_nsg.id
-  depends_on                = [azurerm_subnet_network_security_group_association.db]
+resource "azurerm_subnet_network_security_group_association" "unified" {
+  for_each                  = local.subnets_to_associate
+  subnet_id                 = each.value
+  network_security_group_id = azurerm_network_security_group.unified_nsg.id
 }
