@@ -87,6 +87,10 @@ jobs:
           echo "APPGW_ID=$(terraform output -raw appgw_id)" >> $GITHUB_ENV
           echo "AKS_ID=$(terraform output -raw aks_cluster_id)" >> $GITHUB_ENV
           echo "DB_ID=$(terraform output -raw db_server_id)" >> $GITHUB_ENV
+          echo "DB_FQDN=$(terraform output -raw db_server_fqdn)" >> $GITHUB_ENV
+          echo "DB_USER=$(terraform output -raw db_admin_username)" >> $GITHUB_ENV
+          echo "DB_PASS=$(terraform output -raw db_password)" >> $GITHUB_ENV
+          echo "DB_NAME=$(terraform output -raw db_name)" >> $GITHUB_ENV
 
       - name: Wait for Docker Build and Push
         run: |
@@ -109,6 +113,10 @@ jobs:
           sed -i "s|APPGW_ID_PLACEHOLDER|${{ env.APPGW_ID }}|" k8s/fortress-app.yaml
           sed -i "s|AKS_ID_PLACEHOLDER|${{ env.AKS_ID }}|" k8s/fortress-app.yaml
           sed -i "s|DB_ID_PLACEHOLDER|${{ env.DB_ID }}|" k8s/fortress-app.yaml
+          sed -i "s|DB_HOST_PLACEHOLDER|${{ env.DB_FQDN }}|" k8s/fortress-app.yaml
+          sed -i "s|DB_USER_PLACEHOLDER|${{ env.DB_USER }}|" k8s/fortress-app.yaml
+          sed -i "s|DB_PASSWORD_PLACEHOLDER|${{ env.DB_PASS }}|" k8s/fortress-app.yaml
+          sed -i "s|DB_NAME_PLACEHOLDER|${{ env.DB_NAME }}|" k8s/fortress-app.yaml
           kubectl apply -f k8s/
           kubectl rollout status deployment/fortress-web --timeout=300s
 

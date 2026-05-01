@@ -58,3 +58,19 @@ output "db_server_id" {
   description = "ID of the PostgreSQL Flexible Server"
   value       = module.database.db_server_id
 }
+
+output "db_admin_username" {
+  description = "Administrator username for PostgreSQL"
+  value       = var.admin_username
+}
+
+output "db_password" {
+  description = "Administrator password for PostgreSQL"
+  value       = random_password.db_password.result
+  sensitive   = true
+}
+
+output "db_name" {
+  description = "Database Name"
+  value       = var.db_name
+}
