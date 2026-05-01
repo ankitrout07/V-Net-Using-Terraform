@@ -63,3 +63,19 @@ resource "azurerm_subnet" "redis" {
   virtual_network_name = azurerm_virtual_network.main.name
   address_prefixes     = [cidrsubnet(var.vnet_address_space, 8, 30)] # 10.0.30.0/24
 }
+
+# --- TIER 7: POSTGRES DELEGATED ---
+resource "azurerm_subnet" "postgres_delegated" {
+  name                 = "${var.project_name}-pg-delegated-subnet"
+  resource_group_name  = azurerm_resource_group.main.name
+  virtual_network_name = azurerm_virtual_network.main.name
+  address_prefixes     = [cidrsubnet(var.vnet_address_space, 8, 31)] # 10.0.31.0/24
+
+  delegation {
+    name = "postgres-delegation"
+    service_delegation {
+      name    = "Microsoft.DBforPostgreSQL/flexibleServers"
+      actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+    }
+  }
+}

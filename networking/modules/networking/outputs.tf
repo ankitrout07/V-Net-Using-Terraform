@@ -61,3 +61,9 @@ output "redis_subnet_id" {
   value       = azurerm_subnet.redis.id
 }
 
+output "pg_delegated_subnet_id" {
+  description = "ID of the delegated subnet for PostgreSQL"
+  value       = azurerm_subnet.postgres_delegated.id
+  depends_on  = [azurerm_subnet_network_security_group_association.unified]
+}
+

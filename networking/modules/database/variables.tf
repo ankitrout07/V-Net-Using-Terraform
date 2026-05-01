@@ -47,3 +47,8 @@ variable "vnet_name" {
   description = "Name of the VNet"
   type        = string
 }
+
+variable "pg_delegated_subnet_id" {
+  description = "ID of the pre-delegated subnet for PostgreSQL"
+  type        = string
+}

@@ -117,8 +117,10 @@ locals {
     { for i in range(2) : "app-${i}" => azurerm_subnet.app[i].id },
     { for i in range(2) : "db-${i}" => azurerm_subnet.db[i].id },
     { "gateway" = azurerm_subnet.gateway.id },
-    { "redis" = azurerm_subnet.redis.id },
-    { "bastion" = azurerm_subnet.bastion.id }
+    { "redis"   = azurerm_subnet.redis.id },
+    { "pg"      = azurerm_subnet.postgres_delegated.id }
+    # Note: AzureBastionSubnet excluded from unified NSG as it requires 
+    # very specific, mandatory rules for Azure Bastion Service compliance.
   )
 }
 

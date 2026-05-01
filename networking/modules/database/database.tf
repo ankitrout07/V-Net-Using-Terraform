@@ -6,24 +6,7 @@ resource "random_string" "db_suffix" {
   upper   = false
 }
 
-# 1. Dedicated delegation subnet for PostgreSQL Flexible Server
-#    (Flexible Server requires its own /28+ delegated subnet — not shared)
-resource "azurerm_subnet" "postgres_delegated" {
-  name                 = "${var.project_name}-pg-delegated-subnet"
-  resource_group_name  = var.resource_group_name
-  virtual_network_name = var.vnet_name
-  address_prefixes     = ["10.0.31.0/24"]
-
-  delegation {
-    name = "postgres-delegation"
-    service_delegation {
-      name    = "Microsoft.DBforPostgreSQL/flexibleServers"
-      actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
-    }
-  }
-}
-
-# 2. Private DNS Zone for PostgreSQL Flexible Server
+# 1. Private DNS Zone for PostgreSQL Flexible Server
 resource "azurerm_private_dns_zone" "postgres" {
   name                = "${lower(var.project_name)}-${random_string.db_suffix.result}.private.postgres.database.azure.com"
   resource_group_name = var.resource_group_name
@@ -44,7 +27,7 @@ resource "azurerm_postgresql_flexible_server" "db" {
   resource_group_name    = var.resource_group_name
   location               = var.location
   version                = "15"
-  delegated_subnet_id    = azurerm_subnet.postgres_delegated.id
+  delegated_subnet_id    = var.pg_delegated_subnet_id
   private_dns_zone_id    = azurerm_private_dns_zone.postgres.id
   administrator_login    = var.admin_username
   administrator_password = var.db_password

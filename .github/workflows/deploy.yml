@@ -118,7 +118,7 @@ jobs:
           sed -i "s|DB_PASSWORD_PLACEHOLDER|${{ env.DB_PASS }}|" k8s/fortress-app.yaml
           sed -i "s|DB_NAME_PLACEHOLDER|${{ env.DB_NAME }}|" k8s/fortress-app.yaml
           kubectl apply -f k8s/
-          kubectl rollout status deployment/fortress-web --timeout=300s
+          kubectl rollout status deployment/fortress-web --timeout=600s
 
       - name: Verify Deployment
         run: |
