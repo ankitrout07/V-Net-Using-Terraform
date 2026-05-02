@@ -1,174 +1,150 @@
-# Fortress VNet — Azure AKS 3-Tier Architecture (Terraform)
+# 🏰 Fortress: Enterprise Azure 3-Tier Architecture
 
-Production-grade, secure 3-Tier Virtual Network on Azure, fully provisioned with Terraform. Features a private AKS cluster protected by an Application Gateway with WAF, and a **real-time WebSocket dashboard** for live autoscaling observability.
+[![Terraform](https://img.shields.io/badge/terraform-%235835CC.svg?style=for-the-badge&logo=terraform&logoColor=white)](https://www.terraform.io/)
+[![Azure](https://img.shields.io/badge/azure-%230072C6.svg?style=for-the-badge&logo=microsoftazure&logoColor=white)](https://azure.microsoft.com/)
+[![Kubernetes](https://img.shields.io/badge/kubernetes-%23326ce5.svg?style=for-the-badge&logo=kubernetes&logoColor=white)](https://kubernetes.io/)
+[![GitHub Actions](https://img.shields.io/badge/github%20actions-%232671E5.svg?style=for-the-badge&logo=githubactions&logoColor=white)](https://github.com/features/actions)
+[![Node.js](https://img.shields.io/badge/node.js-6DA55F?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org/)
 
-## Architecture
+**Fortress** is a production-grade, highly secure 3-Tier Virtual Network architecture on Microsoft Azure, fully provisioned via Terraform. It features a private AKS cluster protected by an Application Gateway with WAF, and a state-of-the-art **real-time WebSocket dashboard** for live infrastructure observability.
 
-```
-Internet
-   │  HTTP / HTTPS
-   ▼
-[Application Gateway — Static Public IP]
-   │  (WAF Enabled + AGIC)
-   ▼
-[Tier 1: Public Subnets]
-   │  [Azure Bastion — Secure Access]
-   ▼
-[Tier 2: Private App Subnets]
-  [Private AKS Cluster — Azure CNI]
-   │  ↔ [Redis Cache — Private Endpoint]
-   ▼
-[Tier 3: Isolated DB Subnets]
-  [PostgreSQL Flexible Server v15]
-  [Private DNS Zone — no public access]
-```
+---
 
-### Tiers
+## 🏗️ Architecture Overview
 
-1. **Tier 1: Gateway (Public)**
-   - Azure Application Gateway v2 (Standard_v2 / WAF_v2)
-   - Integrated Ingress Controller (AGIC) for automated traffic routing
-   - Dedicated Public IP for external access
+The architecture follows a strict 3-tier separation of concerns, ensuring maximum security and scalability.
 
-2. **Tier 2: App (Private)**
-   - Azure Kubernetes Service (AKS) — Private Cluster
-   - Azure Redis Cache — Secured with Private Endpoint
-   - Azure CNI Networking for pod-to-vnet connectivity
-   - No direct inbound internet access; egress via NAT Gateway for secure updates
+```mermaid
+graph TD
+    subgraph "External"
+        User((User)) -->|HTTPS/WAF| AppGW[Application Gateway v2]
+    end
 
-3. **Tier 3: DB (Isolated)**
-   - Azure PostgreSQL Flexible Server v15
-   - Dedicated delegated subnet — zero public access
-   - Private DNS Zone (`*.private.postgres.database.azure.com`)
+    subgraph "Azure VNet (10.0.0.0/16)"
+        subgraph "Tier 1: Gateway (Public)"
+            AppGW
+            Bastion[Azure Bastion]
+        end
 
-4. **Tier 1 & 5: Management & Access**
-   - Azure Bastion Host — Secure, jump-box free RDP/SSH access
-   - Unified Resource Group — All components, including state storage, share a single management container.
+        subgraph "Tier 2: App (Private)"
+            AKS[Private AKS Cluster]
+            Redis[Redis Cache]
+            NAT[NAT Gateway]
+        end
 
-### Security
-- **AGIC**: Application Gateway Ingress Controller manages L7 traffic directly to pods.
-- **Private AKS**: The Kubernetes API and nodes are not exposed to the public internet.
-- **RBAC**: Managed Identities with least-privilege role assignments (Contributor, Network Contributor).
-- **NAT Gateway**: Controlled, auditable egress from the AKS nodes.
+        subgraph "Tier 3: DB (Isolated)"
+            DB[(PostgreSQL Flexible Server)]
+        end
 
-## Real-Time Observability Dashboard
+        AppGW -->|AGIC| AKS
+        AKS --> Redis
+        AKS --> DB
+        AKS -->|Egress| NAT
+        NAT -->|Internet| UpdateServer[OS/Package Updates]
+    end
 
-The dashboard is a full-stack Node.js application deployed inside AKS that provides a **"Single Pane of Glass"** for infrastructure monitoring.
-
-### Data Flow
-```
-Browser (index.html)
-   ↕  WebSocket (Socket.io)
-Node.js Backend (server.js)
-   ↕  @kubernetes/client-node
-Kubernetes API Server
-   ↓
-Live Pod Data (every 2 seconds)
+    classDef public fill:#e1f5fe,stroke:#01579b,stroke-width:2px;
+    classDef private fill:#fff3e0,stroke:#e65100,stroke-width:2px;
+    classDef isolated fill:#fce4ec,stroke:#880e4f,stroke-width:2px;
+    
+    class AppGW,Bastion public;
+    class AKS,Redis,NAT private;
+    class DB isolated;
 ```
 
-### Features
-| Feature | Description |
-|---------|-------------|
-| 📦 **Live Pod Counter** | Real-time pod count with animated scaling tags (`STABLE` / `SCALING UP` / `SCALING DOWN`) |
-| 🖥️ **Pod Card Grid** | Per-pod cards showing name, status, IP, and assigned node — updated via WebSocket |
-| 📜 **Scaling Event Log** | Auto-logged terminal entries: `HPA Triggered: Scaling from 2 → 8 pods` |
-| 🕸️ **Network Topology** | Interactive SVG map with animated data-flow particles (Gateway → AKS → DB) |
-| 🛡️ **Security Scanner** | One-click infrastructure scan with visual sweep animation |
-| 📊 **Real-Time Metrics** | CPU load, network latency, and active query gauges |
+### Infrastructure Tiers
 
-### Autoscaling Visualization
-```
-ApacheBench → App Gateway → AKS → HPA Detects CPU > 50%
-   → New Pods Provisioned (Azure CNI) → AGIC Syncs Backend Pool
-   → Dashboard WebSocket Emits Updated Pod List → UI Updates Live
-```
+1.  **Tier 1: Gateway (Public Subnet)**:
+    *   **Application Gateway v2**: L7 Load Balancing with WAF (Web Application Firewall) enabled.
+    *   **AGIC**: Integrated Ingress Controller for automated backend synchronization.
+    *   **Azure Bastion**: Secure, browser-based SSH/RDP access to internal nodes.
+2.  **Tier 2: Application (Private Subnet)**:
+    *   **Private AKS**: Kubernetes API and worker nodes are isolated from the public internet.
+    *   **Azure Redis Cache**: High-performance caching secured via Private Endpoints.
+    *   **NAT Gateway**: Provides a single, predictable IP for secure outbound traffic.
+3.  **Tier 3: Database (Isolated Subnet)**:
+    *   **PostgreSQL Flexible Server**: Dedicated database tier with zero public access.
+    *   **Private DNS**: Seamless internal name resolution within the VNet.
 
-| Phase | Pod Counter | Tag | Terminal Log |
-|-------|-------------|-----|--------------|
-| Before load | 2 | `STABLE` | — |
-| During load | 2 → 4 → 8+ | `SCALING UP` | `HPA Triggered: Scaling from 2 → 8 pods` |
-| After load | Scales back down | `SCALING DOWN` | `Workload decreased: Scaling down to 2 pods` |
+---
 
-## Project Structure
+## 🚀 Quick Start
 
-```
-.
-├── dashboard/             # Real-Time Dashboard (Node.js + Socket.io + Frontend)
-│   ├── server.js          # WebSocket backend — queries K8s API every 2s
-│   ├── index.html         # Frontend UI with Socket.io client
-│   ├── style.css          # Glassmorphism + pod card styles
-│   ├── package.json       # express, socket.io, @kubernetes/client-node
-│   └── Dockerfile         # node:20-alpine container
-├── k8s/                   # Kubernetes Manifests
-│   ├── fortress-app.yaml  # Deployment + Service + RBAC (ServiceAccount)
-│   ├── fortress-ingress.yaml  # AGIC Ingress
-│   └── hpa.yaml           # HPA: 2-5 replicas, CPU > 50%
-├── networking/            # Main Terraform Infrastructure
-│   ├── main.tf            # Root module — wires all modules
-│   ├── provider.tf        # AzureRM provider + backend config
-│   ├── variables.tf
-│   ├── terraform.tfvars   # Your deployment variables (gitignored)
-│   ├── outputs.tf
-│   └── modules/
-│       ├── networking/    # VNet, subnets, NSGs, NAT Gateway, routes
-│       ├── aks/           # Private K8s Cluster + AGIC Addon
-│       ├── app_gateway/   # Application Gateway v2
-│       ├── acr/           # Container Image Registry
-│       ├── database/      # PostgreSQL Flexible Server, Private DNS
-│       ├── redis/         # Redis Cache Cluster (Private)
-│       └── bastion/       # Azure Bastion Host
-├── .github/workflows/
-│   └── deploy.yml         # CI/CD: plan on PR, apply on merge to main
-├── docs/
-│   ├── ARCHITECTURE.md    # Detailed component breakdown
-│   ├── FINAL_PROJECT_REPORT.md  # Complete project report
-│   ├── PROJECT_DOCUMENTATION.md # Technical documentation
-│   ├── HOW_TO_RUN.md      # Full deployment guide (start here)
-│   └── autoscaling_verification.md  # HPA/CA testing guide
-└── README.md              # This file
-```
+The project includes a `Makefile` to orchestrate the entire deployment lifecycle.
 
-## Quick Start
+### Prerequisites
+*   [Terraform](https://www.terraform.io/downloads) >= 1.5.0
+*   [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli) (`az login`)
+*   [Docker Desktop](https://www.docker.com/products/docker-desktop)
+*   SSH Key at `~/.ssh/id_rsa.pub`
 
-See **[HOW_TO_RUN.md](./docs/HOW_TO_RUN.md)** for the full step-by-step guide including CI/CD setup.
+### Deployment Steps
 
 ```bash
-# 1. Deploy infrastructure
-cd networking && terraform init && terraform apply -auto-approve
+# 1. Initialize Backend & Networking
+make init
 
-# 2. Build & push the dashboard image
-LOGIN_SERVER=$(terraform output -raw acr_login_server)
-az acr login --name $(terraform output -raw acr_name)
-docker build -t $LOGIN_SERVER/fortress-dashboard:v5-realtime ../dashboard
-docker push $LOGIN_SERVER/fortress-dashboard:v5-realtime
+# 2. Provision Entire Infrastructure (Terraform)
+make infra
 
-# 3. Deploy to AKS
-az aks get-credentials --resource-group <RG_NAME> --name <AKS_NAME>
-kubectl apply -f ../k8s/fortress-app.yaml
-kubectl apply -f ../k8s/fortress-ingress.yaml
-kubectl apply -f ../k8s/hpa.yaml
-
-# 4. Open dashboard
-open http://$(terraform output -raw app_gateway_public_ip)
-
-# 5. Generate traffic → watch autoscaling live!
-ab -n 10000 -c 50 http://$(terraform output -raw app_gateway_public_ip)/
+# 3. Build & Deploy Dashboard to AKS
+make deploy
 ```
 
-## Prerequisites
-- Terraform >= 1.0
-- Azure CLI (`az login`)
-- Node.js >= 18 (for local dashboard development)
-- Docker (for building the dashboard image)
-- SSH key at `~/.ssh/id_rsa.pub` (`ssh-keygen -t rsa -b 4096`)
-- ApacheBench (`ab`) for load testing (optional)
+---
 
-## Documentation
+## 📊 The "Fortress" Dashboard
 
-| Document | Description |
-|----------|-------------|
-| [HOW_TO_RUN.md](./docs/HOW_TO_RUN.md) | Full deployment guide — start here |
-| [ARCHITECTURE.md](./docs/ARCHITECTURE.md) | Detailed component breakdown + dashboard architecture |
-| [FINAL_PROJECT_REPORT.md](./docs/FINAL_PROJECT_REPORT.md) | Complete project report |
-| [PROJECT_DOCUMENTATION.md](./docs/PROJECT_DOCUMENTATION.md) | Technical documentation + WebSocket layer details |
-| [autoscaling_verification.md](./docs/autoscaling_verification.md) | HPA/CA testing + dashboard visual verification |
+The dashboard is a full-stack Node.js application that provides real-time infrastructure metrics and pod scaling visualizations via WebSockets.
+
+| Feature | Description |
+| :--- | :--- |
+| 📦 **Live Pod Counter** | Real-time replica count with `SCALING` animations. |
+| 🖥️ **Pod Card Grid** | Dynamic cards showing Name, IP, Node, and Status. |
+| 📜 **Scaling Event Log** | Live terminal feed of HPA events and pod lifecycle. |
+| 🕸️ **Network Topology** | Interactive SVG visualization of traffic flow. |
+| 🛡️ **Security Scanner** | On-demand infrastructure audit with visual sweep effect. |
+
+### Autoscaling Workflow
+1.  **Traffic Spike**: Simulated via `ab` (ApacheBench).
+2.  **HPA Detection**: Horizontal Pod Autoscaler detects CPU > 50%.
+3.  **AKS Scaling**: Azure CNI provisions new pods; AGIC updates backend pool.
+4.  **Live Update**: WebSocket emits data to the UI; Pod cards appear instantly.
+
+---
+
+## 🛡️ Security Posture
+
+*   **Zero Public Exposure**: AKS and Database reside in private/isolated subnets.
+*   **WAF Protection**: OWASP rulesets enabled on the Application Gateway.
+*   **Managed Identities**: All resources use System/User Assigned Identities (No static secrets).
+*   **Network Security Groups (NSG)**: Micro-segmentation enforced at the subnet level.
+*   **Private Link**: Inter-service communication stays within the Azure Backbone.
+
+---
+
+## 📁 Project Structure
+
+```bash
+.
+├── .github/workflows/    # Full CI/CD (Plan on PR, Deploy on Merge)
+├── dashboard/            # Node.js + Socket.io + Glassmorphism UI
+├── k8s/                  # Kubernetes Manifests (Ingress, HPA, RBAC)
+├── networking/           # Terraform Root Module
+│   └── modules/          # Reusable modules (AKS, AppGW, DB, etc.)
+├── docs/                 # Detailed Technical Documentation
+└── Makefile              # Automation Entrypoint
+```
+
+---
+
+## 📖 Further Reading
+
+*   [**HOW_TO_RUN.md**](./docs/HOW_TO_RUN.md) - Detailed step-by-step guide.
+*   [**ARCHITECTURE.md**](./docs/ARCHITECTURE.md) - Deep dive into component interaction.
+*   [**PROJECT_DOCUMENTATION.md**](./docs/PROJECT_DOCUMENTATION.md) - Technical specifications.
+*   [**autoscaling_verification.md**](./docs/autoscaling_verification.md) - How to test HPA.
+
+---
+
+Built with ❤️ for Azure Architects.
